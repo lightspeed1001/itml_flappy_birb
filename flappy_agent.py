@@ -5,7 +5,9 @@ import random
 class FlappyAgent:
     def __init__(self):
         # TODO: you may need to do some initialization for your agent here
-        return
+        self.reward_for_state_action_pair = {} # List of state/action pairs and their expected rewards
+        self.returns_s_a = [] # Expected return for episode
+        # halda utanum states í þessu episode
     
     def reward_values(self):
         """ returns the reward values used for training
@@ -27,7 +29,20 @@ class FlappyAgent:
             from the first call.
             """
         # TODO: learn from the observation
-        return
+        
+        # For each pair s, a appearing in the episode:
+        # G <- return following the first occurrence of s, a -- ???
+        # Append G to Returns(s, a) -- ???
+        # Q(s, a) <- average(Returns(s, a)) -- Q(s,a) er reward fyrir state/action pair
+
+        # For each s in the episode:
+        # A* = max(Q(s,a)) -- Finna max reward fyrir state/action pair
+        # for all a in A(s) 
+        # update policy? But how?
+
+        # Hvað er A(s)? Action for a state? 
+        
+        pass
 
     def training_policy(self, state):
         """ Returns the index of the action that should be done in state while training the agent.
@@ -35,10 +50,20 @@ class FlappyAgent:
 
             training_policy is called once per frame in the game while training
         """
-        #print("state: %s" % state)
+        # print("state: %s" % state)
         # TODO: change this to to policy the agent is supposed to use while training
         # At the moment we just return an action uniformly at random.
-        return random.randint(0, 1) 
+        
+        # Generate an episode using policy
+
+        """
+        if state in self.reward_for_state_action_pair:
+            do a good thing?
+        else:
+            do a random thing?
+        """
+
+        return random.randint(0, 1)
 
     def policy(self, state):
         """ Returns the index of the action that should be done in state when training is completed.
@@ -57,7 +82,7 @@ def run_game(nb_episodes, agent):
         An episode of FlappyBird ends with the bird crashing into a pipe or going off screen.
     """
 
-    reward_values = {"positive": 1.0, "negative": 0.0, "tick": 0.0, "loss": 0.0, "win": 0.0}
+    reward_values = agent.reward_values() #{"positive": 1.0, "negative": 0.0, "tick": 0.0, "loss": 0.0, "win": 0.0}
     # TODO: when training use the following instead:
     # reward_values = agent.reward_values
     
@@ -69,16 +94,18 @@ def run_game(nb_episodes, agent):
 
     score = 0
     while nb_episodes > 0:
+        # Generate an episode using policy
         # pick an action
         # TODO: for training using agent.training_policy instead
-        action = agent.policy(env.game.getGameState())
+        action = agent.training_policy(env.game.getGameState())
 
+        # TODO Discretize state
         # step the environment
         reward = env.act(env.getActionSet()[action])
         #print("reward=%d" % reward)
+        # call observe state
 
         # TODO: for training let the agent observe the current state transition
-
         score += reward
         
         # reset the environment if the game is over
@@ -87,6 +114,9 @@ def run_game(nb_episodes, agent):
             env.reset_game()
             nb_episodes -= 1
             score = 0
+
+
+    # TODO Test the found policy here
 
 agent = FlappyAgent()
 run_game(5, agent)

@@ -197,5 +197,5 @@ def run_game(nb_episodes, agent):
     # TODO Test the found policy here
     print("Highscore: %d" % highscore)
 
-agent = FlappyAgentMC(epsilon=0.0001,learningRate=1, discount=0.99, buckets=30)
+agent = FlappyAgentMC(epsilon=0.0001,learningRate=0.1, discount=0.99, buckets=30)
 run_game(1000, agent)

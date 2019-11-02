@@ -1,12 +1,18 @@
 from ple.games.flappybird import FlappyBird
 from ple import PLE
 import random
+import math
 
-class FlappyAgent:
-    def __init__(self):
+
+class FlappyAgentMC:
+    def __init__(self, epsilon, learningRate, discount):
         # TODO: you may need to do some initialization for your agent here
-        self.reward_for_state_action_pair = {} # List of state/action pairs and their expected rewards
+        self.reward_for_state_action_pair = {} # Q - List of state/action pairs and their expected rewards
         self.returns_s_a = [] # Expected return for episode
+        self.epsilon = epsilon 
+        self.learning_rate = learningRate
+        self.episode = []
+        self.discount = discount
         # halda utanum states í þessu episode
     
     def reward_values(self):
@@ -17,7 +23,7 @@ class FlappyAgent:
             1 for passing through each pipe and 0 for all other state
             transitions.
         """
-        return {"positive": 1.0, "tick": 0.0, "loss": -5.0}
+        return {"positive": 1.0, "tick": 0.0, "loss": -5.0,}
     
     def observe(self, s1, a, r, s2, end):
         """ this function is called during training on each step of the game where
@@ -41,8 +47,18 @@ class FlappyAgent:
         # update policy? But how?
 
         # Hvað er A(s)? Action for a state? 
-        
-        pass
+        self.episode.append((s1,a,r))
+        if end:
+            reward_for_state = 0
+            for s,a,r in self.episode[::-1]: #run through the episodes from last to first
+                reward_for_state = r + self.discount * reward_for_state
+                if (s,a) in self.reward_for_state_action_pair.keys():
+                    self.reward_for_state_action_pair[(s,a)] = self.reward_for_state_action_pair[(s,a)] + self.learning_rate*(reward_for_state-self.reward_for_state_action_pair[(s,a)])
+                else:
+                    self.reward_for_state_action_pair[(s,a)] = reward_for_state
+            self.episode = []
+
+    
 
     def training_policy(self, state):
         """ Returns the index of the action that should be done in state while training the agent.
@@ -62,8 +78,27 @@ class FlappyAgent:
         else:
             do a random thing?
         """
+        #To flap, or not to flap, that is the question
+        action = 0
+        #Exlore y/n?
+        if random.random() >= self.epsilon:
+            if (state, 1) in self.reward_for_state_action_pair.keys():
+                no_flap = self.reward_for_state_action_pair[(state,1)]
+            else:
+                no_flap = 0 
+            if (state, 0) in self.reward_for_state_action_pair.keys():
+                flap = self.reward_for_state_action_pair[(state, 0)]
+            else:
+                flap = 0
+            
+            if flap > no_flap:
+                action = 0 # don't flap
+            else:
+                action = 1 # flap
+        else:
+            action = random.randint(0,1)
 
-        return random.randint(0, 1)
+        return action
 
     def policy(self, state):
         """ Returns the index of the action that should be done in state when training is completed.
@@ -86,7 +121,7 @@ def run_game(nb_episodes, agent):
     # TODO: when training use the following instead:
     # reward_values = agent.reward_values
     
-    env = PLE(FlappyBird(), fps=30, display_screen=True, force_fps=False, rng=None,
+    env = PLE(FlappyBird(), fps=30, display_screen=False, force_fps=True, rng=None,
             reward_values = reward_values)
     # TODO: to speed up training change parameters of PLE as follows:
     # display_screen=False, force_fps=True 
@@ -96,15 +131,15 @@ def run_game(nb_episodes, agent):
     while nb_episodes > 0:
         # Generate an episode using policy
         # pick an action
+        state = env.game.getGameState()
         # TODO: for training using agent.training_policy instead
-        action = agent.training_policy(env.game.getGameState())
-
+        action = agent.training_policy(state)
         # TODO Discretize state
         # step the environment
         reward = env.act(env.getActionSet()[action])
         #print("reward=%d" % reward)
         # call observe state
-
+        agent.observe(state,action,reward,None,env.game_over())
         # TODO: for training let the agent observe the current state transition
         score += reward
         
@@ -118,5 +153,5 @@ def run_game(nb_episodes, agent):
 
     # TODO Test the found policy here
 
-agent = FlappyAgent()
-run_game(5, agent)
+agent = FlappyAgentMC(0.1,0.1,0.99)
+run_game(100, agent)

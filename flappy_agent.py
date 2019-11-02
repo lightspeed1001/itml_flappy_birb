@@ -2,13 +2,16 @@ from ple.games.flappybird import FlappyBird
 from ple import PLE
 import random
 import math
+from statistics import mean
+from collections import defaultdict
 
 
 class FlappyAgentMC:
     def __init__(self, epsilon, learningRate, discount, buckets):
         # TODO: you may need to do some initialization for your agent here
         self.reward_for_state_action_pair = {} # Q - List of state/action pairs and their expected rewards
-        self.returns_s_a = [] # Expected return for episode
+        self.returns_s_a = defaultdict(float) # Expected return for episode
+        self.returns_sa_count = defaultdict(float)
         self.epsilon = epsilon 
         self.learning_rate = learningRate
         self.episode = []
@@ -52,13 +55,28 @@ class FlappyAgentMC:
         self.episode.append((s1,a,r))
         if end:
             reward_for_state = 0
-            for s,a,r in self.episode[::-1]: #run through the episodes from last to first
+            for s,a,r in self.episode:
+                pair = (s,a)
+                first_occurance = next(i for i,x in enumerate(self.episode) if x[0] == s and x[1] == a)
+                G = sum([x[2] * (self.discount ** i) for i,x in enumerate(self.episode[first_occurance:])])
+
+                self.returns_s_a[pair] += G
+                self.returns_sa_count[pair] += 1.0
+                self.reward_for_state_action_pair[pair] = (self.returns_s_a[pair] / self.returns_sa_count[pair])
+            self.episode = []
+            """ for s,a,r in self.episode[::-1]: #run through the episodes from last to first
+                pair = (s,a)
                 reward_for_state = r + self.discount * reward_for_state
                 if (s,a) in self.reward_for_state_action_pair.keys():
                     self.reward_for_state_action_pair[(s,a)] = self.reward_for_state_action_pair[(s,a)] + self.learning_rate*(reward_for_state-self.reward_for_state_action_pair[(s,a)])
                 else:
                     self.reward_for_state_action_pair[(s,a)] = reward_for_state
-            self.episode = []
+                    
+                self.returns_s_a[pair] += reward_for_state
+                
+                self.reward_for_state_action_pair[pair] = (sum([x for x in self.returns_s_a.values()]) / len(self.returns_s_a))
+                
+            self.episode = [] """
 
     
 
@@ -115,10 +133,10 @@ class FlappyAgentMC:
         return random.randint(0, 1) 
     
     def discretize_state(self, state):
-        disc_state = (state['player_y'] // self.buckets,
+        distance_y = state['next_pipe_top_y'] - state['player_y']
+        disc_state = (distance_y // self.buckets,
                 state['player_vel'],
-                state['next_pipe_dist_to_player'] // self.buckets,
-                state['next_pipe_top_y'] // self.buckets)
+                state['next_pipe_dist_to_player'] // self.buckets)
         return disc_state
 
 def run_game(nb_episodes, agent):
@@ -135,8 +153,11 @@ def run_game(nb_episodes, agent):
     # TODO: to speed up training change parameters of PLE as follows:
     # display_screen=False, force_fps=True 
     env.init()
-
+    highscore = 0
     score = 0
+    total_score = 0
+    avg_score = 0
+    
     while nb_episodes > 0:
         # Generate an episode using policy
         # pick an action
@@ -151,10 +172,22 @@ def run_game(nb_episodes, agent):
         # call observe state
         agent.observe(state,action,reward,None,env.game_over())
         # TODO: for training let the agent observe the current state transition
-        score += reward
+        if reward > 0:
+            score += reward
         
         # reset the environment if the game is over
         if env.game_over():
+            if(nb_episodes % 100 == 1):
+                env.display_screen = True
+                env.force_fps = False
+            else:
+                env.display_screen = False
+                env.force_fps = True
+            
+            if score > highscore:
+                highscore = score
+            if score > 0:
+                total_score += score
             print("score for this episode: %d" % score)
             env.reset_game()
             nb_episodes -= 1
@@ -162,6 +195,7 @@ def run_game(nb_episodes, agent):
 
 
     # TODO Test the found policy here
+    print("Highscore: %d" % highscore)
 
-agent = FlappyAgentMC(0.1,0.1,0.99, 15)
-run_game(500, agent)
+agent = FlappyAgentMC(epsilon=0.0001,learningRate=1, discount=0.99, buckets=30)
+run_game(1000, agent)

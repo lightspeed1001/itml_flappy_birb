@@ -8,7 +8,7 @@ from collections import defaultdict
 class FlappyAgentMC:
     def __init__(self, epsilon, learningRate, discount, buckets):
         # TODO: you may need to do some initialization for your agent here
-        self.reward_for_state_action_pair = {} # Q - List of state/action pairs and their expected rewards
+        self.reward_for_state_action_pair = defaultdict(float) # Q - List of state/action pairs and their expected rewards
         self.returns_s_a = defaultdict(float) # Expected return for episode
         self.returns_sa_count = defaultdict(float)
         self.epsilon = epsilon 
@@ -16,7 +16,8 @@ class FlappyAgentMC:
         self.episode = []
         self.discount = discount
         self.buckets = buckets
-
+        self.previous_action = 0
+        
         # halda utanum states í þessu episode
     
     def reward_values(self):
@@ -54,7 +55,7 @@ class FlappyAgentMC:
         self.episode.append((s1,a,r))
         if end:
             reward_for_state = 0
-            for s,a,r in self.episode:
+            for s,a,r in self.episode[::-1]:
                 pair = (s,a)
                 first_occurance = next(i for i,x in enumerate(self.episode) if x[0] == s and x[1] == a)
                 G = sum([x[2] * (self.discount ** i) for i,x in enumerate(self.episode[first_occurance:])])
@@ -62,6 +63,21 @@ class FlappyAgentMC:
                 self.returns_s_a[pair] += G
                 self.returns_sa_count[pair] += 1.0
                 self.reward_for_state_action_pair[pair] = (self.returns_s_a[pair] / self.returns_sa_count[pair])
+                
+                # idk lol
+                # source: https://github.com/chncyhn/flappybird-qlearning-bot/blob/master/src/bot.py
+                # max_reward = None
+                # for s1, a2 in self.reward_for_state_action_pair.keys():
+                #     if max_reward == None:
+                #         max_reward = self.reward_for_state_action_pair[(s1, a2)]
+                #     elif s1 == s:
+                #         reward = self.reward_for_state_action_pair[(s1, a2)]
+                #         if reward > max_reward:
+                #             max_reward = reward
+                # self.reward_for_state_action_pair[pair] = (1-self.epsilon) * (self.reward_for_state_action_pair[pair]) + \
+                #                        self.epsilon * ( r + self.discount*max_reward)
+
+                    
             self.episode = []
 
     
@@ -88,22 +104,32 @@ class FlappyAgentMC:
         action = 0
         #Exlore y/n?
         if random.random() >= self.epsilon:
-            if (state, 1) in self.reward_for_state_action_pair.keys():
-                no_flap = self.reward_for_state_action_pair[(state,1)]
+            if self.reward_for_state_action_pair[(state, 1)] > self.reward_for_state_action_pair[(state, 0)]:
+                action = 1
             else:
-                no_flap = 0 
-            if (state, 0) in self.reward_for_state_action_pair.keys():
-                flap = self.reward_for_state_action_pair[(state, 0)]
-            else:
-                flap = 0
+                action = 0
             
-            if flap > no_flap:
-                action = 0 # don't flap
-            else:
-                action = 1 # flap
+            # if flap_reward > noflap_reward:
+            #     action = 1
+            # else:
+            #     action = 0
+
+            # if (state, 1) in self.reward_for_state_action_pair.keys():
+            #     no_flap = self.reward_for_state_action_pair[(state,1)]
+            # else:
+            #     no_flap = 0 
+            # if (state, 0) in self.reward_for_state_action_pair.keys():
+            #     flap = self.reward_for_state_action_pair[(state, 0)]
+            # else:
+            #     flap = 0
+            
+            # if flap > no_flap:
+            #     action = 0 # don't flap
+            # else:
+            #     action = 1 # flap
         else:
             action = random.randint(0,1)
-
+        self.previous_action = action
         return action
 
     def policy(self, state):
@@ -119,10 +145,10 @@ class FlappyAgentMC:
         return random.randint(0, 1) 
     
     def discretize_state(self, state):
-        distance_y = state['next_pipe_top_y'] - state['player_y']
-        disc_state = (distance_y // self.buckets,
-                state['player_vel'],
-                state['next_pipe_dist_to_player'] // self.buckets)
+        distance_y = (state['next_pipe_top_y'] - state['player_y']) // self.buckets
+        velocity = state['player_vel']
+        pipe_dist = state['next_pipe_dist_to_player'] // self.buckets
+        disc_state = (distance_y, velocity, pipe_dist)#, self.previous_action)
         return disc_state
 
 class FlappyAgentQL(FlappyAgentMC):
@@ -211,13 +237,16 @@ def run_game(nb_episodes, agent):
     env.init()
     highscore = 0
     score = 0
-    total_score = 0
-    avg_score = 0
-    
+    next_state = None
+    all_the_scores = []
+    previous_100_scores = []
     while nb_episodes > 0:
         # Generate an episode using policy
         # pick an action
-        state = agent.discretize_state(env.game.getGameState())
+        if next_state is None:
+            state = agent.discretize_state(env.game.getGameState())
+        else:
+            state = next_state
         #print(state)
         # TODO: for training using agent.training_policy instead
         action = agent.training_policy(state)
@@ -226,16 +255,19 @@ def run_game(nb_episodes, agent):
         reward = env.act(env.getActionSet()[action])
         #print("reward=%d" % reward)
         # call observe state
-        agent.observe(state,action,reward,None,env.game_over())
+        next_state = agent.discretize_state(env.game.getGameState())
+        agent.observe(state,action,reward,next_state,env.game_over())
         # TODO: for training let the agent observe the current state transition
         if reward > 0:
             score += reward
         
         # reset the environment if the game is over
         if env.game_over():
-            if(nb_episodes % 100 == 1):
+            if(nb_episodes % 250 == 1):
+                print("episodes remaing {}".format(nb_episodes))
                 env.display_screen = True
                 env.force_fps = False
+                # agent.epsilon /= 2
             else:
                 env.display_screen = False
                 env.force_fps = True
@@ -243,16 +275,21 @@ def run_game(nb_episodes, agent):
             if score > highscore:
                 highscore = score
             if score > 0:
-                total_score += score
-            print("score for this episode: %d" % score)
+                # print("score for this episode: {}; highscore: {}; episodes remaining: {}".format(score, highscore, nb_episodes))
+                print("score for this episode: {}; highscore: {}; avg: {}; avg100: {}".format(score, highscore, mean(all_the_scores), mean(previous_100_scores)))
+            all_the_scores.append(score)
+            previous_100_scores.append(score)
+            if len(previous_100_scores) >= 100:
+                previous_100_scores.remove(previous_100_scores[0])
             env.reset_game()
+            next_state = None
             nb_episodes -= 1
             score = 0
 
 
     # TODO Test the found policy here
     print("Highscore: %d" % highscore)
-
-agent = FlappyAgentMC(epsilon=0.0001,learningRate=0.1, discount=0.99, buckets=30)
-#agent = FlappyAgentQL(epsilon=0.0001,learningRate=0.1, discount=0.99, buckets=30)
-run_game(1000, agent)
+# epsilon 0.001, discount 0.99, buckets 30 = highscore: 26.0; avg: 1.636963696369637; avg100: 3.515151515151515
+agent = FlappyAgentMC(epsilon=0.001,learningRate=0.1, discount=0.99, buckets=30)
+# agent = FlappyAgentQL(epsilon=0.001,learningRate=0.1, discount=0.99, buckets=30)
+run_game(10000, agent)

@@ -5,7 +5,7 @@ import math
 
 
 class FlappyAgentMC:
-    def __init__(self, epsilon, learningRate, discount):
+    def __init__(self, epsilon, learningRate, discount, buckets):
         # TODO: you may need to do some initialization for your agent here
         self.reward_for_state_action_pair = {} # Q - List of state/action pairs and their expected rewards
         self.returns_s_a = [] # Expected return for episode
@@ -13,6 +13,8 @@ class FlappyAgentMC:
         self.learning_rate = learningRate
         self.episode = []
         self.discount = discount
+        self.buckets = buckets
+
         # halda utanum states í þessu episode
     
     def reward_values(self):
@@ -111,6 +113,13 @@ class FlappyAgentMC:
         # TODO: change this to to policy the agent has learned
         # At the moment we just return an action uniformly at random.
         return random.randint(0, 1) 
+    
+    def discretize_state(self, state):
+        disc_state = (state['player_y'] // self.buckets,
+                state['player_vel'],
+                state['next_pipe_dist_to_player'] // self.buckets,
+                state['next_pipe_top_y'] // self.buckets)
+        return disc_state
 
 def run_game(nb_episodes, agent):
     """ Runs nb_episodes episodes of the game with agent picking the moves.
@@ -131,7 +140,8 @@ def run_game(nb_episodes, agent):
     while nb_episodes > 0:
         # Generate an episode using policy
         # pick an action
-        state = env.game.getGameState()
+        state = agent.discretize_state(env.game.getGameState())
+        #print(state)
         # TODO: for training using agent.training_policy instead
         action = agent.training_policy(state)
         # TODO Discretize state
@@ -153,5 +163,5 @@ def run_game(nb_episodes, agent):
 
     # TODO Test the found policy here
 
-agent = FlappyAgentMC(0.1,0.1,0.99)
-run_game(100, agent)
+agent = FlappyAgentMC(0.1,0.1,0.99, 15)
+run_game(500, agent)

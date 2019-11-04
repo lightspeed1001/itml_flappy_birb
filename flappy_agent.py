@@ -6,19 +6,16 @@ from statistics import mean
 from collections import defaultdict
 
 class FlappyAgentMC:
-    def __init__(self, epsilon, learningRate, discount, buckets):
+    def __init__(self, epsilon, discount, buckets):
         # TODO: you may need to do some initialization for your agent here
         self.reward_for_state_action_pair = defaultdict(float) # Q - List of state/action pairs and their expected rewards
         self.returns_s_a = defaultdict(float) # Expected return for episode
         self.returns_sa_count = defaultdict(float)
         self.epsilon = epsilon 
-        self.learning_rate = learningRate
         self.episode = []
         self.discount = discount
         self.buckets = buckets
         self.previous_action = 0
-        
-        # halda utanum states í þessu episode
     
     def reward_values(self):
         """ returns the reward values used for training
@@ -39,22 +36,8 @@ class FlappyAgentMC:
             subsequent steps in the same episode. That is, s1 in the second call will be s2
             from the first call.
             """
-        # TODO: learn from the observation
-        
-        # For each pair s, a appearing in the episode:
-        # G <- return following the first occurrence of s, a -- ???
-        # Append G to Returns(s, a) -- ???
-        # Q(s, a) <- average(Returns(s, a)) -- Q(s,a) er reward fyrir state/action pair
-
-        # For each s in the episode:
-        # A* = max(Q(s,a)) -- Finna max reward fyrir state/action pair
-        # for all a in A(s) 
-        # update policy? But how?
-
-        # Hvað er A(s)? Action for a state? 
         self.episode.append((s1,a,r))
         if end:
-            reward_for_state = 0
             for s,a,r in self.episode[::-1]:
                 pair = (s,a)
                 first_occurance = next(i for i,x in enumerate(self.episode) if x[0] == s and x[1] == a)
@@ -77,7 +60,6 @@ class FlappyAgentMC:
                 # self.reward_for_state_action_pair[pair] = (1-self.epsilon) * (self.reward_for_state_action_pair[pair]) + \
                 #                        self.epsilon * ( r + self.discount*max_reward)
 
-                    
             self.episode = []
 
     
@@ -103,30 +85,11 @@ class FlappyAgentMC:
         #To flap, or not to flap, that is the question
         action = 0
         #Exlore y/n?
-        if random.random() >= self.epsilon:
+        if random.random() >= self.epsilon:# and (state, 1) in self.reward_for_state_action_pair or (state, 0) in self.reward_for_state_action_pair:
             if self.reward_for_state_action_pair[(state, 1)] > self.reward_for_state_action_pair[(state, 0)]:
                 action = 1
             else:
                 action = 0
-            
-            # if flap_reward > noflap_reward:
-            #     action = 1
-            # else:
-            #     action = 0
-
-            # if (state, 1) in self.reward_for_state_action_pair.keys():
-            #     no_flap = self.reward_for_state_action_pair[(state,1)]
-            # else:
-            #     no_flap = 0 
-            # if (state, 0) in self.reward_for_state_action_pair.keys():
-            #     flap = self.reward_for_state_action_pair[(state, 0)]
-            # else:
-            #     flap = 0
-            
-            # if flap > no_flap:
-            #     action = 0 # don't flap
-            # else:
-            #     action = 1 # flap
         else:
             action = random.randint(0,1)
         self.previous_action = action
@@ -142,7 +105,10 @@ class FlappyAgentMC:
         #print("state: %s" % state)
         # TODO: change this to to policy the agent has learned
         # At the moment we just return an action uniformly at random.
-        return random.randint(0, 1) 
+        if self.reward_for_state_action_pair[(state, 1)] > self.reward_for_state_action_pair[(state, 0)]:
+            return 1
+        else:
+            return 0
     
     def discretize_state(self, state):
         distance_y = (state['next_pipe_top_y'] - state['player_y']) // self.buckets
@@ -235,38 +201,38 @@ def run_game(nb_episodes, agent):
     # TODO: to speed up training change parameters of PLE as follows:
     # display_screen=False, force_fps=True 
     env.init()
+    eps_run = 0
     highscore = 0
     score = 0
     next_state = None
     all_the_scores = []
     previous_100_scores = []
     while nb_episodes > 0:
-        # Generate an episode using policy
-        # pick an action
         if next_state is None:
+            # Initial state
             state = agent.discretize_state(env.game.getGameState())
         else:
+            # The s2 from last iteration
             state = next_state
-        #print(state)
-        # TODO: for training using agent.training_policy instead
+        # Get an action and reward
         action = agent.training_policy(state)
-        # TODO Discretize state
-        # step the environment
         reward = env.act(env.getActionSet()[action])
-        #print("reward=%d" % reward)
-        # call observe state
+
+        # Get s2
         next_state = agent.discretize_state(env.game.getGameState())
+        
+        # call observe state
         agent.observe(state,action,reward,next_state,env.game_over())
-        # TODO: for training let the agent observe the current state transition
         if reward > 0:
+            # Just want to see the number of pipes we got through
             score += reward
         
         # reset the environment if the game is over
         if env.game_over():
             if(nb_episodes % 250 == 1):
                 print("episodes remaing {}".format(nb_episodes))
-                env.display_screen = True
-                env.force_fps = False
+                # env.display_screen = True
+                # env.force_fps = False
                 # agent.epsilon /= 2
             else:
                 env.display_screen = False
@@ -274,22 +240,58 @@ def run_game(nb_episodes, agent):
             
             if score > highscore:
                 highscore = score
-            if score > 0:
-                # print("score for this episode: {}; highscore: {}; episodes remaining: {}".format(score, highscore, nb_episodes))
-                print("score for this episode: {}; highscore: {}; avg: {}; avg100: {}".format(score, highscore, mean(all_the_scores), mean(previous_100_scores)))
             all_the_scores.append(score)
             previous_100_scores.append(score)
+            if score > 0:
+                print("score for this episode: {}; highscore: {}; avg: {}; avg100: {}".format(score, highscore, mean(all_the_scores), mean(previous_100_scores)))
             if len(previous_100_scores) >= 100:
                 previous_100_scores.remove(previous_100_scores[0])
+            with open(FILENAME, "a") as f:
+                f.write("{},{},train\n".format(eps_run, score))
+            env.reset_game()
+            next_state = None
+            nb_episodes -= 1
+            eps_run += 1
+            score = 0
+    print("="*100)
+    input("Hit me daddy")
+    print("Play starts here!")
+    nb_episodes = 10
+    eps_run = 0
+    all_the_scores = []
+    previous_100_scores = []
+    env.display_screen = True
+    env.force_fps = False
+    while nb_episodes > 0:
+        if next_state is None:
+            state = agent.discretize_state(env.game.getGameState())
+        else:
+            state = next_state
+        action = agent.policy(state)
+        reward = env.act(env.getActionSet()[action])
+        next_state = agent.discretize_state(env.game.getGameState())
+
+        if reward > 0:
+            score += reward
+        
+        if env.game_over():
+            print("episodes remaing {}".format(nb_episodes))
+            if score > highscore:
+                highscore = score
+            all_the_scores.append(score)
+            previous_100_scores.append(score)
+            if score > 0:
+                print("score for this episode: {}; highscore: {}; avg: {}".format(score, highscore, mean(all_the_scores)))
+            eps_run += 1
+            with open(FILENAME, "a") as f:
+                f.write("{},{},test\n".format(eps_run, score))
             env.reset_game()
             next_state = None
             nb_episodes -= 1
             score = 0
 
-
-    # TODO Test the found policy here
-    print("Highscore: %d" % highscore)
-# epsilon 0.001, discount 0.99, buckets 30 = highscore: 26.0; avg: 1.636963696369637; avg100: 3.515151515151515
-agent = FlappyAgentMC(epsilon=0.001,learningRate=0.1, discount=0.99, buckets=30)
+# MUNA AÐ BREYTA ÞESSU PLZ
+FILENAME = "stats3.csv"
+agent = FlappyAgentMC(epsilon=0.1, discount=0.99, buckets=30)
 # agent = FlappyAgentQL(epsilon=0.001,learningRate=0.1, discount=0.99, buckets=30)
-run_game(10000, agent)
+run_game(1000, agent)

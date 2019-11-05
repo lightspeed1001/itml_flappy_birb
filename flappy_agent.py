@@ -86,10 +86,8 @@ class FlappyAgentMC:
         action = 0
         #Exlore y/n?
         if random.random() >= self.epsilon:# and (state, 1) in self.reward_for_state_action_pair or (state, 0) in self.reward_for_state_action_pair:
-            if self.reward_for_state_action_pair[(state, 1)] > self.reward_for_state_action_pair[(state, 0)]:
-                action = 1
-            else:
-                action = 0
+            #call policy, no need to have the same code twice over.
+            action = self.policy(state)
         else:
             action = random.randint(0,1)
         self.previous_action = action
@@ -115,11 +113,13 @@ class FlappyAgentMC:
         velocity = state['player_vel']
         pipe_dist = state['next_pipe_dist_to_player'] // self.buckets
         disc_state = (distance_y, velocity, pipe_dist)#, self.previous_action)
+
         return disc_state
 
 class FlappyAgentQL(FlappyAgentMC):
     def __init__(self, epsilon, learningRate, discount, buckets):
-        super().__init__(epsilon, learningRate, discount, buckets)
+        super().__init__(epsilon, discount, buckets)
+        self.learning_rate = learningRate
 
     def reward_values(self):
         """ returns the reward values used for training
@@ -141,9 +141,15 @@ class FlappyAgentQL(FlappyAgentMC):
             from the first call.
             """
         # TODO: learn from the observation
-        if end:
-            pass
-            #learn from it
+        pair = (s1,a)
+        if pair not in self.reward_for_state_action_pair:
+            self.reward_for_state_action_pair[pair] = r
+        else:
+            if not end:
+                sPrime = self.policy(s2) #get action for s2
+                self.reward_for_state_action_pair[pair] = self.reward_for_state_action_pair[pair] + self.learning_rate *(r + self.discount * self.reward_for_state_action_pair[(s2,sPrime)] - self.reward_for_state_action_pair[pair])
+            else:
+                self.reward_for_state_action_pair[pair] = self.reward_for_state_action_pair[pair] + self.learning_rate * (r - self.reward_for_state_action_pair[pair])
 
     
 
@@ -165,6 +171,12 @@ class FlappyAgentQL(FlappyAgentMC):
         else:
             do a random thing?
         """
+        if random.random() >= self.epsilon:
+            action = self.policy(state)
+            pass
+        else:
+            action = random.randint(0,1)
+        return action
 
 
     def policy(self, state):
@@ -177,7 +189,11 @@ class FlappyAgentQL(FlappyAgentMC):
         #print("state: %s" % state)
         # TODO: change this to to policy the agent has learned
         # At the moment we just return an action uniformly at random.
-        return random.randint(0, 1) 
+        if self.reward_for_state_action_pair[(state,0)] >= self.reward_for_state_action_pair[(state,1)]:
+            action = 0
+        else:
+            action = 1
+        return action 
     
     def discretize_state(self, state):
         #TODO: change this for QL
@@ -254,7 +270,7 @@ def run_game(nb_episodes, agent):
             eps_run += 1
             score = 0
     print("="*100)
-    input("Hit me daddy")
+    input("Hit me daddy") #this should probably go before we send this in..
     print("Play starts here!")
     nb_episodes = 10
     eps_run = 0
@@ -292,6 +308,6 @@ def run_game(nb_episodes, agent):
 
 # MUNA AÐ BREYTA ÞESSU PLZ
 FILENAME = "stats3.csv"
-agent = FlappyAgentMC(epsilon=0.1, discount=0.99, buckets=30)
-# agent = FlappyAgentQL(epsilon=0.001,learningRate=0.1, discount=0.99, buckets=30)
+#agent = FlappyAgentMC(epsilon=0.05, discount=0.99, buckets=30)
+agent = FlappyAgentQL(epsilon=0.1,learningRate=0.1, discount=1, buckets=15)
 run_game(1000, agent)

@@ -207,6 +207,7 @@ def run_game(nb_episodes, agent):
     next_state = None
     all_the_scores = []
     previous_100_scores = []
+    training = True
     while nb_episodes > 0:
         if next_state is None:
             # Initial state
@@ -215,7 +216,10 @@ def run_game(nb_episodes, agent):
             # The s2 from last iteration
             state = next_state
         # Get an action and reward
-        action = agent.training_policy(state)
+        if training:
+            action = agent.training_policy(state)
+        else:
+            action = agent.policy(state)
         reward = env.act(env.getActionSet()[action])
 
         # Get s2
@@ -229,25 +233,24 @@ def run_game(nb_episodes, agent):
         
         # reset the environment if the game is over
         if env.game_over():
-            if(nb_episodes % 250 == 1):
+            if nb_episodes % 100 == 1:
                 print("episodes remaing {}".format(nb_episodes))
                 # env.display_screen = True
                 # env.force_fps = False
-                # agent.epsilon /= 2
-            else:
-                env.display_screen = False
-                env.force_fps = True
-            
+                training = not training
+                if training:
+                    agent.epsilon *= 0.99
+
             if score > highscore:
                 highscore = score
             all_the_scores.append(score)
             previous_100_scores.append(score)
             if score > 0:
-                print("score for this episode: {}; highscore: {}; avg: {}; avg100: {}".format(score, highscore, mean(all_the_scores), mean(previous_100_scores)))
+                print("{}; score for this episode: {}; highscore: {}; avg: {}; avg100: {}".format("training" if training else "testing",score, highscore, mean(all_the_scores), mean(previous_100_scores)))
             if len(previous_100_scores) >= 100:
                 previous_100_scores.remove(previous_100_scores[0])
             with open(FILENAME, "a") as f:
-                f.write("{},{},train\n".format(eps_run, score))
+                f.write("{},{},{},{},{}\n".format(eps_run, score,"train" if training else "test", mean(all_the_scores), mean(previous_100_scores)))
             env.reset_game()
             next_state = None
             nb_episodes -= 1
@@ -258,6 +261,7 @@ def run_game(nb_episodes, agent):
     print("Play starts here!")
     nb_episodes = 10
     eps_run = 0
+    highscore = 0
     all_the_scores = []
     previous_100_scores = []
     env.display_screen = True
@@ -283,8 +287,8 @@ def run_game(nb_episodes, agent):
             if score > 0:
                 print("score for this episode: {}; highscore: {}; avg: {}".format(score, highscore, mean(all_the_scores)))
             eps_run += 1
-            with open(FILENAME, "a") as f:
-                f.write("{},{},test\n".format(eps_run, score))
+            # with open(FILENAME, "a") as f:
+            #     f.write("{},{},test\n".format(eps_run, score))
             env.reset_game()
             next_state = None
             nb_episodes -= 1
@@ -292,6 +296,8 @@ def run_game(nb_episodes, agent):
 
 # MUNA AÐ BREYTA ÞESSU PLZ
 FILENAME = "stats3.csv"
+with open(FILENAME, "w+") as f:
+    f.write("episode,score,type,average,average100\n")
 agent = FlappyAgentMC(epsilon=0.1, discount=0.99, buckets=30)
 # agent = FlappyAgentQL(epsilon=0.001,learningRate=0.1, discount=0.99, buckets=30)
-run_game(1000, agent)
+run_game(30000, agent)

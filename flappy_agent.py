@@ -109,10 +109,12 @@ class FlappyAgentMC:
             return 0
     
     def discretize_state(self, state):
-        distance_y = (state['next_pipe_top_y'] - state['player_y']) // self.buckets
+        # distance_y = (state['next_pipe_top_y'] - state['player_y']) // self.buckets
+        player_y = state['player_y'] // self.buckets
+        pipe_y = state['next_pipe_top_y'] // self.buckets
         velocity = state['player_vel']
         pipe_dist = state['next_pipe_dist_to_player'] // self.buckets
-        disc_state = (distance_y, velocity, pipe_dist)#, self.previous_action)
+        disc_state = (player_y, pipe_y, velocity, pipe_dist)
 
         return disc_state
 
@@ -196,11 +198,13 @@ class FlappyAgentQL(FlappyAgentMC):
         return action 
     
     def discretize_state(self, state):
-        #TODO: change this for QL
-        distance_y = state['next_pipe_top_y'] - state['player_y']
-        disc_state = (distance_y // self.buckets,
-                state['player_vel'],
-                state['next_pipe_dist_to_player'] // self.buckets)
+        # distance_y = (state['next_pipe_top_y'] - state['player_y']) // self.buckets
+        player_y = state['player_y'] // self.buckets
+        pipe_y = state['next_pipe_top_y'] // self.buckets
+        velocity = state['player_vel']
+        pipe_dist = state['next_pipe_dist_to_player'] // self.buckets
+        disc_state = (player_y, pipe_y, velocity, pipe_dist)
+
         return disc_state
 
 def run_game(nb_episodes, agent):
@@ -254,8 +258,8 @@ def run_game(nb_episodes, agent):
                 # env.display_screen = True
                 # env.force_fps = False
                 training = not training
-                if training:
-                    agent.epsilon *= 0.99
+                # if training:
+                #     agent.epsilon *= 0.99
 
             if score > highscore:
                 highscore = score
@@ -311,9 +315,9 @@ def run_game(nb_episodes, agent):
             score = 0
 
 # MUNA AÐ BREYTA ÞESSU PLZ
-FILENAME = "stats3.csv"
+FILENAME = "TESTICLES.csv"
 with open(FILENAME, "w+") as f:
     f.write("episode,score,type,average,average100\n")
-agent = FlappyAgentMC(epsilon=0.1, discount=0.99, buckets=30)
-# agent = FlappyAgentQL(epsilon=0.1,learningRate=0.1, discount=1, buckets=15)
-run_game(30000, agent)
+# agent = FlappyAgentMC(epsilon=0.1, discount=1.0, buckets=15)
+agent = FlappyAgentQL(epsilon=0.1,learningRate=0.1, discount=1, buckets=15)
+run_game(50000, agent)

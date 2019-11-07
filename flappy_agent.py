@@ -5,6 +5,7 @@ import math
 from statistics import mean
 from collections import defaultdict
 import time
+import numpy
 
 class FlappyAgentMC:
     def __init__(self, epsilon, discount, buckets):
@@ -208,6 +209,137 @@ class FlappyAgentQL(FlappyAgentMC):
 
         return disc_state
 
+class FlappyAgentLR(FlappyAgentMC):
+    def __init__(self, epsilon, learningRate, discount, buckets,flapW, noopW):
+        super().__init__(epsilon, discount, buckets)
+        self.learning_rate = learningRate
+        self.flapWeight = flapW
+        self.noopWeight = noopW
+
+
+
+    # def LinearRegression(self,x,y,weight,index, m0 = 0, c0 = 0):
+    #     # y = mx + c
+    #
+    #     n = len(y)
+    #     E,Dm,Dc = 0,0,0
+    #     for j in range(0,100):
+    #         for i in range(0,n):
+    #             y_predict = m0 * x[i] + c0
+    #             E += y[i] - y_predict
+    #             Dm += x[i] * (y[i] - y_predict)
+    #             Dc += y[i] - y_predict
+    #         E = E * 1/n
+    #         Dm = Dm * (-2/n)
+    #         Dc = Dc * (-2/n)
+    #         m0 = m0 - self.learningRate * Dm
+    #         c0 = c0 - self.learningRate * Dc
+    #
+    #
+
+
+
+    def reward_values(self):
+        """ returns the reward values used for training
+
+            Note: These are only the rewards used for training.
+            The rewards used for evaluating the agent will always be
+            1 for passing through each pipe and 0 for all other state
+            transitions.
+        """
+        return {"positive": 1.0, "tick": 0.0, "loss": -5.0,}
+
+    def observe(self, s1, a, r, s2, end):
+        """ this function is called during training on each step of the game where
+            the state transition is going from state s1 with action a to state s2 and
+            yields the reward r. If s2 is a terminal state, end==True, otherwise end==False.
+
+            Unless a terminal state was reached, two subsequent calls to observe will be for
+            subsequent steps in the same episode. That is, s1 in the second call will be s2
+            from the first call.
+            """
+        # TODO: learn from the observation
+        pair = (s1,a)
+        sPrime = self.policy(s2) #get action for s2
+        if pair not in self.reward_for_state_action_pair:
+            self.reward_for_state_action_pair[pair] = r
+        else:
+            if a == 1:
+                action = 1
+                transposeds1 = sum(numpy.dot(self.reward_for_state_action_pair[pair],self.flapWeight))
+                transposeds2 = sum(numpy.dot(self.reward_for_state_action_pair[(s2,sPrime)],self.flapWeight))
+            else:
+                action = 0
+                transposeds1 = sum(numpy.dot(self.reward_for_state_action_pair[pair],self.noopWeight))
+                transposeds2 = sum(numpy.dot(self.reward_for_state_action_pair[(s2,sPrime)],self.noopWeight))
+            if not end:
+                self.reward_for_state_action_pair[pair] = transposeds1 + self.learning_rate *(r + transposeds2 - transposeds1)
+
+            else:
+                self.reward_for_state_action_pair[pair] = transposeds1 + self.learning_rate * (r - transposeds1)
+            #print(self.reward_for_state_action_pair[pair])
+            #updating noop/flap vectors
+            if action == 1:
+                for i in range(0,4):
+                    self.flapWeight[i] = self.flapWeight[i]  + self.learning_rate * (r + transposeds2 - transposeds1)
+            if action == 0:
+                for i in range(0,4):
+                    self.noopWeight[i] = self.noopWeight[i]  + self.learning_rate * (r + transposeds2 - transposeds1)
+
+
+    def training_policy(self, state):
+        """ Returns the index of the action that should be done in state while training the agent.
+            Possible actions in Flappy Bird are 0 (flap the wing) or 1 (do nothing).
+
+            training_policy is called once per frame in the game while training
+        """
+        # print("state: %s" % state)
+        # TODO: change this to to policy the agent is supposed to use while training
+        # At the moment we just return an action uniformly at random.
+
+        # Generate an episode using policy
+
+        """
+        if state in self.reward_for_state_action_pair:
+            do a good thing?
+        else:
+            do a random thing?
+        """
+        if random.random() >= self.epsilon:
+            action = self.policy(state)
+            pass
+        else:
+            action = random.randint(0,1)
+        return action
+
+
+    def policy(self, state):
+        """ Returns the index of the action that should be done in state when training is completed.
+            Possible actions in Flappy Bird are 0 (flap the wing) or 1 (do nothing).
+
+            policy is called once per frame in the game (30 times per second in real-time)
+            and needs to be sufficiently fast to not slow down the game.
+        """
+        #print("state: %s" % state)
+        # TODO: change this to to policy the agent has learned
+        # At the moment we just return an action uniformly at random.
+        if self.reward_for_state_action_pair[(state,0)] >= self.reward_for_state_action_pair[(state,1)]:
+            action = 0
+        else:
+            action = 1
+        return action
+
+    def discretize_state(self, state):
+        distance_y = (state['next_pipe_top_y'] - state['player_y']) // self.buckets
+        # player_y = state['player_y'] // self.buckets
+        # pipe_y = state['next_pipe_top_y'] // self.buckets
+        velocity = state['player_vel']
+        pipe_dist = state['next_pipe_dist_to_player'] // self.buckets
+        disc_state = (distance_y, velocity, pipe_dist)
+
+        return disc_state
+
+
 def run_game(nb_episodes, agent):
     """ Runs nb_episodes episodes of the game with agent picking the moves.
         An episode of FlappyBird ends with the bird crashing into a pipe or going off screen.
@@ -295,5 +427,6 @@ FRAME_LIMIT = 1000000 # 1m frames
 with open(FILENAME, "w+") as f:
     f.write("episode,score,type,average,average100\n")
 # agent = FlappyAgentMC(epsilon=0.1, discount=0.99, buckets=15)
-agent = FlappyAgentQL(epsilon=0.1,learningRate=0.1, discount=0.9, buckets=30)
-run_game(1000000000, agent)
+# agent = FlappyAgentQL(epsilon=0.1,learningRate=0.1, discount=0.9, buckets=30)
+agent = FlappyAgentLR(epsilon=0.1, learningRate=0.1, discount=1.0, buckets=15, flapW=[0,0,0,0], noopW=[0,0,0,0])
+run_game(100000, agent)

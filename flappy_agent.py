@@ -4,6 +4,7 @@ import random
 import math
 from statistics import mean
 from collections import defaultdict
+import time
 
 class FlappyAgentMC:
     def __init__(self, epsilon, discount, buckets):
@@ -198,12 +199,12 @@ class FlappyAgentQL(FlappyAgentMC):
         return action 
     
     def discretize_state(self, state):
-        # distance_y = (state['next_pipe_top_y'] - state['player_y']) // self.buckets
-        player_y = state['player_y'] // self.buckets
-        pipe_y = state['next_pipe_top_y'] // self.buckets
+        distance_y = (state['next_pipe_top_y'] - state['player_y']) // self.buckets
+        # player_y = state['player_y'] // self.buckets
+        # pipe_y = state['next_pipe_top_y'] // self.buckets
         velocity = state['player_vel']
         pipe_dist = state['next_pipe_dist_to_player'] // self.buckets
-        disc_state = (player_y, pipe_y, velocity, pipe_dist)
+        disc_state = (distance_y, velocity, pipe_dist)
 
         return disc_state
 
@@ -228,6 +229,8 @@ def run_game(nb_episodes, agent):
     all_the_scores = []
     previous_100_scores = []
     training = True
+    start_time = time.time()
+    frames = 0
     while nb_episodes > 0:
         if next_state is None:
             # Initial state
@@ -251,15 +254,23 @@ def run_game(nb_episodes, agent):
             # Just want to see the number of pipes we got through
             score += reward
         
+        timediff = time.time() - start_time
+        frames += 1
         # reset the environment if the game is over
+        if (timediff >= TIME_LIMIT or frames >= FRAME_LIMIT) and training:
+            print("Time or frame limit reached! Moving on to testing.")
+            training = not training
+            nb_episodes = 1000
+            # env.display_screen = True
+            # env.force_fps = False
+            env.reset_game()
         if env.game_over():
             if nb_episodes % 100 == 1:
                 print("episodes remaing {}".format(nb_episodes))
                 # env.display_screen = True
                 # env.force_fps = False
-                training = not training
-                # if training:
-                #     agent.epsilon *= 0.99
+                if training:
+                    agent.epsilon *= 0.99
 
             if score > highscore:
                 highscore = score
@@ -276,48 +287,13 @@ def run_game(nb_episodes, agent):
             nb_episodes -= 1
             eps_run += 1
             score = 0
-    print("="*100)
-    input("Hit me daddy") #this should probably go before we send this in..
-    print("Play starts here!")
-    nb_episodes = 10
-    eps_run = 0
-    highscore = 0
-    all_the_scores = []
-    previous_100_scores = []
-    env.display_screen = True
-    env.force_fps = False
-    while nb_episodes > 0:
-        if next_state is None:
-            state = agent.discretize_state(env.game.getGameState())
-        else:
-            state = next_state
-        action = agent.policy(state)
-        reward = env.act(env.getActionSet()[action])
-        next_state = agent.discretize_state(env.game.getGameState())
-
-        if reward > 0:
-            score += reward
-        
-        if env.game_over():
-            print("episodes remaing {}".format(nb_episodes))
-            if score > highscore:
-                highscore = score
-            all_the_scores.append(score)
-            previous_100_scores.append(score)
-            if score > 0:
-                print("score for this episode: {}; highscore: {}; avg: {}".format(score, highscore, mean(all_the_scores)))
-            eps_run += 1
-            # with open(FILENAME, "a") as f:
-            #     f.write("{},{},test\n".format(eps_run, score))
-            env.reset_game()
-            next_state = None
-            nb_episodes -= 1
-            score = 0
 
 # MUNA AÐ BREYTA ÞESSU PLZ
-FILENAME = "TESTICLES.csv"
+FILENAME = "best_test_3.csv"
+TIME_LIMIT = 60 * 60 # one hour
+FRAME_LIMIT = 1000000 # 1m frames
 with open(FILENAME, "w+") as f:
     f.write("episode,score,type,average,average100\n")
-# agent = FlappyAgentMC(epsilon=0.1, discount=1.0, buckets=15)
-agent = FlappyAgentQL(epsilon=0.1,learningRate=0.1, discount=1, buckets=15)
-run_game(50000, agent)
+# agent = FlappyAgentMC(epsilon=0.1, discount=0.99, buckets=15)
+agent = FlappyAgentQL(epsilon=0.1,learningRate=0.1, discount=0.9, buckets=30)
+run_game(1000000000, agent)

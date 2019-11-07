@@ -421,7 +421,7 @@ def run_game(nb_episodes, agent):
             score = 0
 
 # MUNA AÐ BREYTA ÞESSU PLZ
-FILENAME = "best_test_3.csv"
+FILENAME = "LinearTest.csv"
 TIME_LIMIT = 60 * 60 # one hour
 FRAME_LIMIT = 1000000 # 1m frames
 with open(FILENAME, "w+") as f:
